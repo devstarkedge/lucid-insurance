@@ -82,6 +82,8 @@ const InsuranceForm = () => {
       }
     };
 
+    console.log('HubSpot Submission Payload:', body);
+
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
