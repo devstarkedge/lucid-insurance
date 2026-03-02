@@ -45,7 +45,7 @@ const InsuranceForm = () => {
     const formGuid = 'a9745802-fde6-4539-8463-74c389d33454';
     const endpoint = `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${formGuid}`;
 
-  
+
     const hubspotFields = [
       { name: 'email', value: formData.email },
       { name: 'full_name', value: formData.fullName },
@@ -112,8 +112,8 @@ const InsuranceForm = () => {
         <div className="placeholder-step">
           <div className="success-icon">
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="32" cy="32" r="32" fill="#DEF7EC"/>
-              <path d="M18 32L28 42L46 24" stroke="#057A55" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="32" cy="32" r="32" fill="#DEF7EC" />
+              <path d="M18 32L28 42L46 24" stroke="#057A55" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <h2 className="form-title">Application Submitted!</h2>
@@ -158,12 +158,14 @@ const InsuranceForm = () => {
         <h1>Life Insurance Application</h1>
         <p>Help us understand your needs for personalized recommendations</p>
       </div>
-      
-      <Stepper currentStep={currentStep} steps={steps} />
-      
-      <div className="card">
-        {renderStep()}
-      </div>
+
+      <form onSubmit={handleSubmit}>
+        <Stepper currentStep={currentStep} steps={steps} />
+
+        <div className="card">
+          {renderStep()}
+        </div>
+      </form>
     </div>
   );
 };
