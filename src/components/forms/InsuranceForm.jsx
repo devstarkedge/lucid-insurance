@@ -38,7 +38,8 @@ const InsuranceForm = () => {
   };
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
+    // setIsSubmitting(true);
+    setIsSubmitted(true);
     setError(null);
 
     // const portalId = '245066659';
