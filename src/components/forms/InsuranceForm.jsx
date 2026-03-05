@@ -33,8 +33,8 @@ const InsuranceForm = () => {
     // Map each step to the correct internal HubSpot progress status
     const progressMapping = {
       1: 'personal_info',
-      2: 'lifestyle__financial',
-      3: 'health__profile',
+      2: 'lifestyle _financial',
+      3: 'health_profile',
       4: 'coverage_needs'
     };
 
