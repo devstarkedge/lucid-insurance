@@ -30,6 +30,14 @@ const InsuranceForm = () => {
     const formGuid = '4eb77d07-f352-4595-8bc6-dbd7465de4d3';
     const accessToken = import.meta.env.VITE_HUBSPOT_ACCESS_TOKEN;
 
+    // Map each step to the correct internal HubSpot progress status
+    const progressMapping = {
+      1: 'personal_info',
+      2: 'lifestyle__financial',
+      3: 'health__profile',
+      4: 'coverage_needs'
+    };
+
     if (step === 1) {
       // Step 1: Use Forms API (Form Submission)
       const endpoint = `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${formGuid}`;
@@ -41,7 +49,8 @@ const InsuranceForm = () => {
         { name: 'state', value: data.state },
         { name: 'sex', value: data.sex },
         { name: 'date_of_birth', value: data.birthDate },
-        { name: 'us_citizen_or_permanent_resident', value: data.residency }
+        { name: 'us_citizen_or_permanent_resident', value: data.residency },
+        { name: 'application_progress', value: progressMapping[1] }
       ].filter(f => f.value != null).map(f => ({ ...f, value: String(f.value) }));
 
       const body = {
@@ -77,7 +86,8 @@ const InsuranceForm = () => {
           do_you_consume_alcohol: data.alcohol,
           have_you_filed_for_bankruptcy_in_the_past_2_years: data.bankruptcy,
           have_you_ever_been_convicted_or_charged_with_a_felony: data.felony,
-          have_you_in_the_past_2_years_or_do_you_plan_in_the_next_year_to_participate_in_any_of_the_following: (data.activities || []).join(', ')
+          have_you_in_the_past_2_years_or_do_you_plan_in_the_next_year_to_participate_in_any_of_the_following: (data.activities || []).join(', '),
+          application_progress: progressMapping[2]
         },
         3: {
           whats_your_height_and_weight: data.weight || '', // Sending only weight since property is a Number type
@@ -85,13 +95,15 @@ const InsuranceForm = () => {
           have_you_ever_been_treated_for_heart_disease_hiv_liver_disease_or_cancer: data.seriousTreat,
           have_you_ever_undergone_an_organ_transplant: data.transplant,
           in_the_past_10_years_have_you_been_diagnosed_with_any_of_the_following: (data.conditions || []).join(', '),
-          are_you_taking_two_or_more_medications_to_manage_a_mental_health_condition: data.mentalMeds
+          are_you_taking_two_or_more_medications_to_manage_a_mental_health_condition: data.mentalMeds,
+          application_progress: progressMapping[3]
         },
         4: {
           what_type_of_life_insurance_are_you_looking_for: data.insuranceType,
           term_length_for_term_quotes: data.termLength,
           coverage_amount: data.coverageAmount,
-          primary_beneficiari: data.beneficiaries
+          primary_beneficiari: data.beneficiaries,
+          application_progress: progressMapping[4]
         }
       };
 
@@ -220,7 +232,8 @@ const InsuranceForm = () => {
           { name: 'what_type_of_life_insurance_are_you_looking_for', value: data.insuranceType },
           { name: 'term_length_for_term_quotes', value: data.termLength },
           { name: 'coverage_amount', value: data.coverageAmount },
-          { name: 'primary_beneficiari', value: data.beneficiaries }
+          { name: 'primary_beneficiari', value: data.beneficiaries },
+          { name: 'application_progress', value: progressMapping[4] }
         ];
 
         const finalFields = allFields
