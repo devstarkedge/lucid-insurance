@@ -1,0 +1,8 @@
+{
+    "rewrites": [
+        {
+            "source": "/hubapi/:path*",
+            "destination": "https://api.hubapi.com/:path*"
+        }
+    ]
+}
