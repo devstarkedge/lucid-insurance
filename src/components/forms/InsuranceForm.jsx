@@ -25,8 +25,243 @@ const InsuranceForm = () => {
     setFormData((prev) => ({ ...prev, ...newData }));
   };
 
-  const handleContinue = () => {
+  const submitToHubspot = async (data, step) => {
+    const portalId = '245066659';
+    const formGuid = '4eb77d07-f352-4595-8bc6-dbd7465de4d3';
+    const accessToken = import.meta.env.VITE_HUBSPOT_ACCESS_TOKEN;
+
+    if (step === 1) {
+      // Step 1: Use Forms API (Form Submission)
+      const endpoint = `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${formGuid}`;
+      const fields = [
+        { name: 'email', value: data.email },
+        { name: 'full_name', value: data.fullName },
+        { name: 'phone', value: data.phone },
+        { name: 'address', value: data.address },
+        { name: 'state', value: data.state },
+        { name: 'sex', value: data.sex },
+        { name: 'date_of_birth', value: data.birthDate },
+        { name: 'us_citizen_or_permanent_resident', value: data.residency }
+      ].filter(f => f.value != null).map(f => ({ ...f, value: String(f.value) }));
+
+      const body = {
+        fields,
+        context: {
+          pageUri: window.location.href,
+          pageName: document.title
+        }
+      };
+
+      console.log('HubSpot Form Submission (Step 1):', body);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Form submission failed');
+      }
+    } else {
+      // Steps 2-4: Use CRM API (Direct CRM Contact Update) 
+      // Using /hubapi proxy defined in vite.config.js to avoid CORS
+      const email = encodeURIComponent(data.email);
+      const endpointCRM = `/hubapi/crm/v3/objects/contacts/${email}?idProperty=email`;
+
+      // Define which CRM properties are relevant for each step
+      const propertiesMapping = {
+        2: {
+          occupation: data.occupation,
+          what_is_your_annual_household_income: data.income,
+          are_you_currently_dealing_with_substance_abuse_or_alcoholism: data.substance,
+          do_you_consume_alcohol: data.alcohol,
+          have_you_filed_for_bankruptcy_in_the_past_2_years: data.bankruptcy,
+          have_you_ever_been_convicted_or_charged_with_a_felony: data.felony,
+          have_you_in_the_past_2_years_or_do_you_plan_in_the_next_year_to_participate_in_any_of_the_following: (data.activities || []).join(', ')
+        },
+        3: {
+          whats_your_height_and_weight: data.weight || '', // Sending only weight since property is a Number type
+          do_you_currently_use_any_nicotine_products: data.nicotine,
+          have_you_ever_been_treated_for_heart_disease_hiv_liver_disease_or_cancer: data.seriousTreat,
+          have_you_ever_undergone_an_organ_transplant: data.transplant,
+          in_the_past_10_years_have_you_been_diagnosed_with_any_of_the_following: (data.conditions || []).join(', '),
+          are_you_taking_two_or_more_medications_to_manage_a_mental_health_condition: data.mentalMeds
+        },
+        4: {
+          what_type_of_life_insurance_are_you_looking_for: data.insuranceType,
+          term_length_for_term_quotes: data.termLength,
+          coverage_amount: data.coverageAmount,
+          primary_beneficiari: data.beneficiaries
+        }
+      };
+
+      const properties = propertiesMapping[step] || {};
+      const sanitizedProperties = {};
+
+      // Value normalization mapping for CRM API
+      const valueMap = {
+        // Yes/No
+        'yes': 'Yes',
+        'no': 'No',
+        'none': 'None of the Above',
+
+        // Activities (Step 2)
+        'aviation': 'Recreational Aviation',
+        'airSports': 'Air Sports',
+        'motorSports': 'Motor Sports',
+        'climbing': 'Mountain, Rock, Snow or Ice Climbing',
+        'scuba': 'Scuba Diving',
+        'cliffDiving': 'Cliff Diving',
+        'otherSports': 'Other Sport Activities',
+
+        // Health Conditions (Step 3)
+        'kidney': 'Kidney disease (excluding kidney stones)',
+        'asthma': 'Astma',
+        'parkinson': "Parkinson's disease",
+        'diabetes': 'Diabetes',
+        'ms': 'Multiple sclerosis',
+        'hbp': 'High blood pressure',
+        'nerve': 'A degenerative muscle or nerve disease',
+        'psych': 'Psychological disorder (anxiety, depression, bipolar)',
+        'cirrhosis': 'Cirrhosis or hepatitis',
+        'stroke': 'Stroke',
+        'copd': 'Emphysema or COPD',
+        'cholesterol': 'High cholesterol',
+        'alzheimer': "Alzheimer's/dementia/permanent cognitive impairment",
+        'sleepApnea': 'Sleep apnea',
+        'cancer': 'Cancer',
+        'heartAttack': 'Heart attack',
+        'other': 'Other serious condition',
+
+        // Income (Step 2)
+        'under25': 'Under $25,000',
+        '25to50': '$25,000 - $49,999',
+        '50to100': '$50,000 - $99,999',
+        '100to150': '$100,000 - $149,999',
+        '150to200': '$150,000 - $199,999',
+        'above200': '$200,000+',
+
+        // Insurance Type (Step 4)
+        'term': 'Term',
+        'whole': 'Whole Life',
+        'universal': 'Universal Life',
+        'final': 'Final Expense'
+      };
+
+      const normalizeValue = (val) => {
+        if (val == null) return '';
+        const strVal = String(val);
+
+        // Check if it's a comma-separated list (multi-select)
+        if (strVal.includes(', ')) {
+          return strVal.split(', ')
+            .map(item => valueMap[item.toLowerCase()] || item)
+            .join('; '); // HubSpot often uses semicolon for multiple values in CRM
+        }
+
+        return valueMap[strVal.toLowerCase()] || strVal;
+      };
+
+      Object.keys(properties).forEach(key => {
+        if (properties[key] != null) {
+          sanitizedProperties[key] = normalizeValue(properties[key]);
+        }
+      });
+
+      const bodyCRM = { properties: sanitizedProperties };
+      console.log(`HubSpot CRM Update (Step ${step}):`, bodyCRM);
+
+      const responseCRM = await fetch(endpointCRM, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(bodyCRM)
+      });
+      if (!responseCRM.ok) {
+        const err = await responseCRM.json();
+        console.error('HubSpot CRM API Error Response:', err);
+        throw new Error(err.message || 'CRM update failed');
+      }
+
+      // SPECIAL CASE: For the final step (4), also submit the FULL form to the second Form ID
+      if (step === 4) {
+        const finalFormGuid = 'a9745802-fde6-4539-8463-74c389d33454';
+        const finalEndpoint = `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${finalFormGuid}`;
+
+        // Map all data points from all steps
+        const allFields = [
+          // Step 1
+          { name: 'email', value: data.email },
+          { name: 'full_name', value: data.fullName },
+          { name: 'phone', value: data.phone },
+          { name: 'address', value: data.address },
+          { name: 'state', value: data.state },
+          { name: 'sex', value: data.sex },
+          { name: 'date_of_birth', value: data.birthDate },
+          { name: 'us_citizen_or_permanent_resident', value: data.residency },
+          // Step 2
+          { name: 'occupation', value: data.occupation },
+          { name: 'what_is_your_annual_household_income', value: data.income },
+          { name: 'are_you_currently_dealing_with_substance_abuse_or_alcoholism', value: data.substance },
+          { name: 'do_you_consume_alcohol', value: data.alcohol },
+          { name: 'have_you_filed_for_bankruptcy_in_the_past_2_years', value: data.bankruptcy },
+          { name: 'have_you_ever_been_convicted_or_charged_with_a_felony', value: data.felony },
+          { name: 'have_you_in_the_past_2_years_or_do_you_plan_in_the_next_year_to_participate_in_any_of_the_following', value: (data.activities || []).join(', ') },
+          // Step 3
+          { name: 'whats_your_height_and_weight', value: data.weight },
+          { name: 'do_you_currently_use_any_nicotine_products', value: data.nicotine },
+          { name: 'have_you_ever_been_treated_for_heart_disease_hiv_liver_disease_or_cancer', value: data.seriousTreat },
+          { name: 'have_you_ever_undergone_an_organ_transplant', value: data.transplant },
+          { name: 'in_the_past_10_years_have_you_been_diagnosed_with_any_of_the_following', value: (data.conditions || []).join(', ') },
+          { name: 'are_you_taking_two_or_more_medications_to_manage_a_mental_health_condition', value: data.mentalMeds },
+          // Step 4
+          { name: 'what_type_of_life_insurance_are_you_looking_for', value: data.insuranceType },
+          { name: 'term_length_for_term_quotes', value: data.termLength },
+          { name: 'coverage_amount', value: data.coverageAmount },
+          { name: 'primary_beneficiari', value: data.beneficiaries }
+        ];
+
+        const finalFields = allFields
+          .filter(f => f.value != null)
+          .map(f => ({ ...f, value: normalizeValue(f.value) }));
+
+        const finalBody = {
+          fields: finalFields,
+          context: {
+            pageUri: window.location.href,
+            pageName: document.title
+          }
+        };
+
+        console.log('HubSpot Final Full Form Submission (Step 4):', finalBody);
+        const finalResponse = await fetch(finalEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(finalBody)
+        });
+
+        if (!finalResponse.ok) {
+          const finalErr = await finalResponse.json();
+          console.error('Final Form Error:', finalErr);
+          // We don't necessarily want to block the whole UI if the redundant form fails but CRM update worked,
+          // but for consistency we'll throw here.
+          throw new Error(finalErr.message || 'Final form submission failed');
+        }
+      }
+    }
+    return true;
+  };
+
+  const handleContinue = async () => {
     if (currentStep < 4) {
+      // Proactively submit to HubSpot with data up to current step
+      try {
+        await submitToHubspot(formData, currentStep);
+      } catch (err) {
+        console.warn('Silent HubSpot failure during multi-step submission:', err);
+      }
       setCurrentStep(currentStep + 1);
     }
   };
@@ -41,66 +276,11 @@ const InsuranceForm = () => {
     setIsSubmitting(true);
     setError(null);
 
-    const portalId = '245066659';
-    const formGuid = 'a9745802-fde6-4539-8463-74c389d33454';
-    const endpoint = `https://api.hsforms.com/submissions/v3/integration/submit/${portalId}/${formGuid}`;
-
-
-    const hubspotFields = [
-      { name: 'email', value: formData.email },
-      { name: 'full_name', value: formData.fullName },
-      { name: 'phone', value: formData.phone },
-      { name: 'address', value: formData.address },
-      { name: 'state', value: formData.state },
-      { name: 'sex', value: formData.sex },
-      { name: 'date_of_birth', value: formData.birthDate },
-      { name: 'us_citizen_or_permanent_resident', value: formData.residency },
-      { name: 'occupation', value: formData.occupation },
-      { name: 'what_is_your_annual_household_income', value: formData.income },
-      { name: 'are_you_currently_dealing_with_substance_abuse_or_alcoholism', value: formData.substance },
-      { name: 'do_you_consume_alcohol', value: formData.alcohol },
-      { name: 'have_you_filed_for_bankruptcy_in_the_past_2_years', value: formData.bankruptcy },
-      { name: 'have_you_ever_been_convicted_or_charged_with_a_felony', value: formData.felony },
-      { name: 'have_you_in_the_past_2_years_or_do_you_plan_in_the_next_year_to_participate_in_any_of_the_following', value: (formData.activities || []).join(', ') },
-      { name: 'whats_your_height_and_weight', value: `${formData.heightFt}'${formData.heightIn}" - ${formData.weight} lbs` },
-      { name: 'do_you_currently_use_any_nicotine_products', value: formData.nicotine },
-      { name: 'have_you_ever_been_treated_for_heart_disease_hiv_liver_disease_or_cancer', value: formData.seriousTreat },
-      { name: 'have_you_ever_undergone_an_organ_transplant', value: formData.transplant },
-      { name: 'in_the_past_10_years_have_you_been_diagnosed_with_any_of_the_following', value: (formData.conditions || []).join(', ') },
-      { name: 'are_you_taking_two_or_more_medications_to_manage_a_mental_health_condition', value: formData.mentalMeds },
-      { name: 'what_type_of_life_insurance_are_you_looking_for', value: formData.insuranceType },
-      { name: 'term_length_for_term_quotes', value: formData.termLength },
-      { name: 'coverage_amount', value: formData.coverageAmount },
-      { name: 'primary_beneficiari', value: formData.beneficiaries }
-    ];
-
-    const body = {
-      fields: hubspotFields,
-      context: {
-        pageUri: window.location.href,
-        pageName: document.title
-      }
-    };
-
-    console.log('HubSpot Submission Payload:', body);
-
     try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (response.ok) {
-        setIsSubmitted(true);
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Something went wrong. Please try again.');
-      }
+      await submitToHubspot(formData, 4);
+      setIsSubmitted(true);
     } catch (err) {
-      setError('Connection error. Please check your internet and try again.');
+      setError(err.message || 'Connection error. Please check your internet and try again.');
     } finally {
       setIsSubmitting(false);
     }

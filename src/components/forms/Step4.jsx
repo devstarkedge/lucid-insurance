@@ -50,23 +50,23 @@ const Step4 = ({ data, updateData, onFinish, onBack }) => {
       description: 'Permanent coverage with flexible premiums and cash value accumulation potential.' 
     },
     { 
-      value: 'both', 
+      value: 'Show me both options', 
       label: 'Show me both options', 
       description: 'Compare Term and Universal Life quotes to find the best fit for your needs.' 
     }
   ];
 
   const termOptions = [
-    { value: '10', label: '10 Years' },
-    { value: '20', label: '20 Years' },
-    { value: '30', label: '30 Years' }
+    { value: '10 Years', label: '10 Years' },
+    { value: '20 Years', label: '20 Years' },
+    { value: '30 Years', label: '30 Years' }
   ];
 
   const amountOptions = [
-    { value: '100k', label: '$100K' },
-    { value: '250k', label: '$250K' },
-    { value: '500k', label: '$500K' },
-    { value: '1m', label: '$1M+' }
+    { value: '$100K', label: '$100K' },
+    { value: '$250K', label: '$250K' },
+    { value: '$500K', label: '$500K' },
+    { value: '$1M', label: '$1M' }
   ];
 
   return (

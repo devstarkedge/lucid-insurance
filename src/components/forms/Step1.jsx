@@ -16,13 +16,13 @@ const Step1 = ({ data, updateData, onContinue }) => {
   ];
 
   const sexOptions = [
-    { value: 'male', label: 'Male' },
-    { value: 'female', label: 'Female' }
+    { value: 'Male', label: 'Male' },
+    { value: 'Female', label: 'Female' }
   ];
 
   const residencyOptions = [
-    { value: 'yes', label: 'Yes' },
-    { value: 'no', label: 'No' }
+    { value: 'Yes', label: 'Yes' },
+    { value: 'No', label: 'No' }
   ];
 
   const validate = () => {
