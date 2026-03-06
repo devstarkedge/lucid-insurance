@@ -14,6 +14,54 @@ const InsuranceForm = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState(null);
 
+  const isValidEmail = (email) => {
+    return /^\S+@\S+\.\S+$/.test(email);
+  };
+
+  const saveToLocalStorage = (data, step) => {
+    if (data.email && isValidEmail(data.email)) {
+      const dataToSave = {
+        formData: data,
+        currentStep: step,
+        lastUpdated: new Date().toISOString()
+      };
+      localStorage.setItem(`lucide_insurance_data_${data.email}`, JSON.stringify(dataToSave));
+      localStorage.setItem('lucide_insurance_last_email', data.email);
+    }
+  };
+
+  React.useEffect(() => {
+    // Cleanup: Remove any partial email data keys to keep localStorage clean
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('lucide_insurance_data_')) {
+          const emailPart = key.replace('lucide_insurance_data_', '');
+          if (!isValidEmail(emailPart)) {
+            localStorage.removeItem(key);
+            i--;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('LocalStorage cleanup failed', e);
+    }
+
+    const lastEmail = localStorage.getItem('lucide_insurance_last_email');
+    if (lastEmail) {
+      const savedData = localStorage.getItem(`lucide_insurance_data_${lastEmail}`);
+      if (savedData) {
+        try {
+          const parsed = JSON.parse(savedData);
+          setFormData(parsed.formData || {});
+          setCurrentStep(parsed.currentStep || 1);
+        } catch (e) {
+          console.error('Error parsing saved form data', e);
+        }
+      }
+    }
+  }, []);
+
   const steps = [
     "Personal Information",
     "Lifestyle & Financial",
@@ -22,7 +70,41 @@ const InsuranceForm = () => {
   ];
 
   const updateFormData = (newData) => {
-    setFormData((prev) => ({ ...prev, ...newData }));
+    setFormData((prev) => {
+      const updated = { ...prev, ...newData };
+
+      // If email changed, handle multi-user switching
+      if (newData.email && newData.email !== prev.email) {
+        // ONLY attempt to load if the NEW email is a valid complete one
+        if (isValidEmail(newData.email)) {
+          const existingData = localStorage.getItem(`lucide_insurance_data_${newData.email}`);
+
+          if (existingData) {
+            try {
+              const parsed = JSON.parse(existingData);
+              // Switch to this user's data if they've been here before
+              return { ...parsed.formData, email: newData.email };
+            } catch (e) {
+              console.error('Error recovering existing data for email', e);
+            }
+          }
+        }
+      }
+
+      return updated;
+    });
+
+    // If step was saved in localStorage for this user, we might want to offer to jump there
+    // For now, we'll just update the data. The Step1 component can handle the visual cue.
+  };
+
+  const clearSession = () => {
+    if (formData.email) {
+      localStorage.removeItem(`lucide_insurance_data_${formData.email}`);
+      localStorage.removeItem('lucide_insurance_last_email');
+    }
+    setFormData({});
+    setCurrentStep(1);
   };
 
   const submitToHubspot = async (data, step) => {
@@ -269,6 +351,9 @@ const InsuranceForm = () => {
 
   const handleContinue = async () => {
     if (currentStep < 4) {
+      // Save progress to localStorage only on step completion
+      saveToLocalStorage(formData, currentStep + 1);
+
       // Proactively submit to HubSpot with data up to current step
       try {
         await submitToHubspot(formData, currentStep);
@@ -292,6 +377,11 @@ const InsuranceForm = () => {
     try {
       await submitToHubspot(formData, 4);
       setIsSubmitted(true);
+      // Clear persistence after successful full submission
+      if (formData.email) {
+        localStorage.removeItem(`lucide_insurance_data_${formData.email}`);
+        localStorage.removeItem('lucide_insurance_last_email');
+      }
     } catch (err) {
       setError(err.message || 'Connection error. Please check your internet and try again.');
     } finally {
@@ -328,7 +418,7 @@ const InsuranceForm = () => {
 
     switch (currentStep) {
       case 1:
-        return <Step1 data={formData} updateData={updateFormData} onContinue={handleContinue} />;
+        return <Step1 data={formData} updateData={updateFormData} onContinue={handleContinue} onReset={clearSession} />;
       case 2:
         return <Step2 data={formData} updateData={updateFormData} onContinue={handleContinue} onBack={handleBack} />;
       case 3:
